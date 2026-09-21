@@ -115,14 +115,29 @@ class MaskFormer(nn.Module):
             num_points=cfg.MODEL.MASK_FORMER.TRAIN_NUM_POINTS,
         )
 
-        weight_dict = {"loss_ce": class_weight, "loss_mask": mask_weight, "loss_dice": dice_weight}
+        weight_dict = {
+            "loss_ce": class_weight,
+            "loss_mask": mask_weight,
+            "loss_dice": dice_weight,
+        }
 
         if deep_supervision:
             dec_layers = cfg.MODEL.MASK_FORMER.DEC_LAYERS
             aux_weight_dict = {}
+
             for i in range(dec_layers - 1):
-                aux_weight_dict.update({k + f"_{i}": v for k, v in weight_dict.items()})
+                aux_weight_dict.update(
+                    {
+                        k + f"_{i}": v
+                        for k, v in weight_dict.items()
+                    }
+                )
+
             weight_dict.update(aux_weight_dict)
+
+        # V3 boundary auxiliary loss.
+        # Add after auxiliary weights so boundary loss remains final-only.
+        weight_dict["loss_boundary"] = 0.1
 
         losses = ["labels", "masks"]
 

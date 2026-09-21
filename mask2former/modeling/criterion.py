@@ -70,6 +70,7 @@ sigmoid_ce_loss_jit = torch.jit.script(
 )  # type: torch.jit.ScriptModule
 
 
+
 def calculate_uncertainty(logits):
     """
     We estimate uncerainty as L1 distance between 0.0 and the logit prediction in 'logits' for the
@@ -85,6 +86,156 @@ def calculate_uncertainty(logits):
     assert logits.shape[1] == 1
     gt_class_logits = logits.clone()
     return -(torch.abs(gt_class_logits))
+
+@torch.no_grad()
+def sample_unique_boundary_point_coords(
+    target_masks,
+    num_points=512,
+    boundary_kernel_size=3,
+    chunk_size=8,
+):
+    """
+    Sample unique GT boundary points for V3 auxiliary boundary loss.
+
+    Args:
+        target_masks:
+            [N, 1, H, W]
+
+    Returns:
+        boundary_coords:
+            [N, num_points, 2]
+
+        valid_boundary:
+            [N, num_points]
+
+    Boundary definition:
+        dilation - erosion
+
+    Sampling:
+        unique sampling without replacement
+
+    If an instance has fewer than num_points valid boundary
+    pixels, all valid boundary pixels are used and the
+    remaining slots are marked invalid.
+    """
+
+    assert target_masks.dim() == 4
+    assert target_masks.shape[1] == 1
+    assert num_points > 0
+    assert boundary_kernel_size >= 3
+    assert boundary_kernel_size % 2 == 1
+    assert chunk_size >= 1
+
+    num_masks = target_masks.shape[0]
+    height = target_masks.shape[-2]
+    width = target_masks.shape[-1]
+    device = target_masks.device
+
+    assert num_points <= height * width
+
+    if num_masks == 0:
+        return (
+            torch.empty(
+                (0, num_points, 2),
+                device=device,
+                dtype=torch.float32,
+            ),
+            torch.empty(
+                (0, num_points),
+                device=device,
+                dtype=torch.bool,
+            ),
+        )
+
+    padding = boundary_kernel_size // 2
+
+    boundary_coord_chunks = []
+    valid_boundary_chunks = []
+
+    for start in range(0, num_masks, chunk_size):
+        end = min(start + chunk_size, num_masks)
+
+        masks = (target_masks[start:end] > 0.5).float()
+
+        dilated = F.max_pool2d(
+            masks,
+            kernel_size=boundary_kernel_size,
+            stride=1,
+            padding=padding,
+        )
+
+        eroded = 1.0 - F.max_pool2d(
+            1.0 - masks,
+            kernel_size=boundary_kernel_size,
+            stride=1,
+            padding=padding,
+        )
+
+        boundary = (dilated - eroded) > 0.5
+        boundary_flat = boundary[:, 0].flatten(1)
+
+        random_scores = torch.rand(
+            boundary_flat.shape,
+            device=device,
+            dtype=torch.float32,
+        )
+
+        random_scores.masked_fill_(
+            ~boundary_flat,
+            -1.0,
+        )
+
+        selected_scores, selected_linear_indices = torch.topk(
+            random_scores,
+            k=num_points,
+            dim=1,
+            largest=True,
+            sorted=False,
+        )
+
+        valid_boundary = selected_scores >= 0.0
+
+        y = torch.div(
+            selected_linear_indices,
+            width,
+            rounding_mode="floor",
+        )
+
+        x = selected_linear_indices % width
+
+        x = (x.float() + 0.5) / float(width)
+        y = (y.float() + 0.5) / float(height)
+
+        boundary_coords = torch.stack(
+            [x, y],
+            dim=-1,
+        )
+
+        boundary_coord_chunks.append(boundary_coords)
+        valid_boundary_chunks.append(valid_boundary)
+
+    boundary_coords = torch.cat(
+        boundary_coord_chunks,
+        dim=0,
+    )
+
+    valid_boundary = torch.cat(
+        valid_boundary_chunks,
+        dim=0,
+    )
+
+    assert boundary_coords.shape == (
+        num_masks,
+        num_points,
+        2,
+    )
+
+    assert valid_boundary.shape == (
+        num_masks,
+        num_points,
+    )
+
+    return boundary_coords, valid_boundary
 
 
 class SetCriterion(nn.Module):
@@ -118,6 +269,10 @@ class SetCriterion(nn.Module):
         self.num_points = num_points
         self.oversample_ratio = oversample_ratio
         self.importance_sample_ratio = importance_sample_ratio
+        # V3 auxiliary boundary loss parameters
+        self.boundary_num_points = 512
+        self.boundary_kernel_size = 3
+        self.boundary_chunk_size = 8
 
     def loss_labels(self, outputs, targets, indices, num_masks):
         """Classification loss (NLL)
@@ -189,6 +344,102 @@ class SetCriterion(nn.Module):
         del target_masks
         return losses
 
+    def loss_boundary(
+            self,
+            outputs,
+            targets,
+            indices,
+            num_masks,
+    ):
+        """
+        Compute V3 auxiliary GT boundary BCE loss.
+
+        Important:
+            This loss is computed only for the final decoder output.
+
+            It does not replace any points from the original
+            Mask2Former uncertainty/random point sampler.
+        """
+
+        assert "pred_masks" in outputs
+
+        src_idx = self._get_src_permutation_idx(indices)
+
+        src_masks = outputs["pred_masks"][src_idx]
+
+        if src_masks.shape[0] == 0:
+            return {
+                "loss_boundary": src_masks.sum() * 0.0
+            }
+
+        matched_target_masks = []
+
+        for target, (_, target_indices) in zip(
+                targets,
+                indices,
+        ):
+            target_indices = target_indices.to(
+                target["masks"].device
+            )
+
+            matched_target_masks.append(
+                target["masks"].index_select(
+                    0,
+                    target_indices,
+                )
+            )
+
+        target_masks = torch.cat(
+            matched_target_masks,
+            dim=0,
+        )
+
+        target_masks = target_masks.to(src_masks)
+
+        src_masks = src_masks[:, None]
+        target_masks = target_masks[:, None]
+
+        with torch.no_grad():
+            boundary_coords, valid_boundary = (
+                sample_unique_boundary_point_coords(
+                    target_masks,
+                    num_points=self.boundary_num_points,
+                    boundary_kernel_size=self.boundary_kernel_size,
+                    chunk_size=self.boundary_chunk_size,
+                )
+            )
+
+            boundary_labels = point_sample(
+                target_masks,
+                boundary_coords,
+                align_corners=False,
+            ).squeeze(1)
+
+        boundary_logits = point_sample(
+            src_masks,
+            boundary_coords,
+            align_corners=False,
+        ).squeeze(1)
+
+        boundary_bce = F.binary_cross_entropy_with_logits(
+            boundary_logits,
+            boundary_labels,
+            reduction="none",
+        )
+        valid_boundary = valid_boundary.to(boundary_bce.dtype)
+
+        valid_counts = valid_boundary.sum(dim=1)
+        instance_boundary_loss = ((boundary_bce * valid_boundary).sum(dim=1)
+                                  / valid_counts.clamp(min=1.0))
+        has_boundary = ((valid_counts > 0).to(instance_boundary_loss.dtype))
+        instance_boundary_loss = (instance_boundary_loss * has_boundary)
+        loss_boundary = (instance_boundary_loss.sum() / num_masks)
+
+        del src_masks
+        del target_masks
+
+        return { "loss_boundary": loss_boundary }
+
     def _get_src_permutation_idx(self, indices):
         # permute predictions following indices
         batch_idx = torch.cat([torch.full_like(src, i) for i, (src, _) in enumerate(indices)])
@@ -234,6 +485,16 @@ class SetCriterion(nn.Module):
         losses = {}
         for loss in self.losses:
             losses.update(self.get_loss(loss, outputs, targets, indices, num_masks))
+        # V3 auxiliary boundary loss.
+        # Final decoder output only.
+        losses.update(
+            self.loss_boundary(
+                outputs_without_aux,
+                targets,
+                indices,
+                num_masks,
+            )
+        )
 
         # In case of auxiliary losses, we repeat this process with the output of each intermediate layer.
         if "aux_outputs" in outputs:
