@@ -135,7 +135,7 @@ class MaskFormer(nn.Module):
         #
         # Add after aux weights so no loss_boundary_0 ... loss_boundary_8
         # entries are created.
-        weight_dict["loss_boundary"] = 1.0
+        weight_dict["loss_boundary"] = 0.1
 
         losses = [
             "labels",
