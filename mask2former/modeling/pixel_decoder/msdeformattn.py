@@ -249,6 +249,32 @@ class MSDeformAttnPixelDecoder(nn.Module):
             stride=1,
             padding=0,
         )
+
+        self.mask_refine = nn.Sequential(
+            Conv2d(
+                conv_dim,
+                conv_dim,
+                kernel_size=3,
+                stride=1,
+                padding=1,
+                activation=F.relu,
+            ),
+            Conv2d(
+                conv_dim,
+                conv_dim,
+                kernel_size=3,
+                stride=1,
+                padding=1,
+            ),
+        )
+
+        weight_init.c2_xavier_fill(
+            self.mask_refine[0]
+        )
+
+        weight_init.c2_xavier_fill(
+            self.mask_refine[1]
+        )
         weight_init.c2_xavier_fill(self.mask_features)
         
         self.maskformer_num_feature_levels = 3  # always use 3 scales
@@ -355,4 +381,21 @@ class MSDeformAttnPixelDecoder(nn.Module):
                 multi_scale_features.append(o)
                 num_cur_levels += 1
 
-        return self.mask_features(out[-1]), out[0], multi_scale_features
+        # V6 Mask Feature Refinement
+        mask_feature_input = out[-1]
+
+        refined_feature = self.mask_refine(
+            mask_feature_input
+        )
+
+        mask_feature_input = (
+                mask_feature_input
+                +
+                0.1 * refined_feature
+        )
+
+        return (
+            self.mask_features(mask_feature_input),
+            out[0],
+            multi_scale_features,
+        )
