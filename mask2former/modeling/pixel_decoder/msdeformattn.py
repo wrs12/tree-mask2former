@@ -250,9 +250,11 @@ class MSDeformAttnPixelDecoder(nn.Module):
             padding=0,
         )
 
+        # V6B Edge-aware Mask Feature Refinement
+
         self.mask_refine = nn.Sequential(
             Conv2d(
-                conv_dim,
+                conv_dim * 2,
                 conv_dim,
                 kernel_size=3,
                 stride=1,
@@ -272,9 +274,18 @@ class MSDeformAttnPixelDecoder(nn.Module):
             self.mask_refine[0]
         )
 
-        weight_init.c2_xavier_fill(
-            self.mask_refine[1]
+        # zero init residual branch
+        nn.init.constant_(
+            self.mask_refine[1].weight,
+            0
         )
+
+        nn.init.constant_(
+            self.mask_refine[1].bias,
+            0
+        )
+
+
         weight_init.c2_xavier_fill(self.mask_features)
         
         self.maskformer_num_feature_levels = 3  # always use 3 scales
@@ -381,11 +392,34 @@ class MSDeformAttnPixelDecoder(nn.Module):
                 multi_scale_features.append(o)
                 num_cur_levels += 1
 
-        # V6 Mask Feature Refinement
+        # V6B Edge-aware refinement
+
         mask_feature_input = out[-1]
 
+        # local high-frequency feature
+        smooth_feature = F.avg_pool2d(
+            mask_feature_input,
+            kernel_size=3,
+            stride=1,
+            padding=1,
+        )
+
+        edge_feature = (
+                mask_feature_input
+                -
+                smooth_feature
+        )
+
+        refine_input = torch.cat(
+            [
+                mask_feature_input,
+                edge_feature,
+            ],
+            dim=1,
+        )
+
         refined_feature = self.mask_refine(
-            mask_feature_input
+            refine_input
         )
 
         mask_feature_input = (
