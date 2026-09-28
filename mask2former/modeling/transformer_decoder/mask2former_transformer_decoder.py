@@ -316,7 +316,21 @@ class MultiScaleMaskedTransformerDecoder(nn.Module):
         self.query_feat = nn.Embedding(num_queries, hidden_dim)
         # learnable query p.e.
         self.query_embed = nn.Embedding(num_queries, hidden_dim)
+        # V7 Center-aware Query Residual Adapter
 
+        self.center_adapter = nn.Linear(
+            hidden_dim,
+            hidden_dim,
+        )
+        nn.init.constant_(
+            self.center_adapter.weight,
+            0
+        )
+
+        nn.init.constant_(
+            self.center_adapter.bias,
+            0
+        )
         # level embedding (we always use 3 scales)
         self.num_feature_levels = 3
         self.level_embed = nn.Embedding(self.num_feature_levels, hidden_dim)
@@ -414,8 +428,14 @@ class MultiScaleMaskedTransformerDecoder(nn.Module):
             output = self.transformer_ffn_layers[i](
                 output
             )
+            # V7 Center Query Residual Adapter
+            output = output + 0.1 * self.center_adapter(output)
 
-            outputs_class, outputs_mask, attn_mask = self.forward_prediction_heads(output, mask_features, attn_mask_target_size=size_list[(i + 1) % self.num_feature_levels])
+            outputs_class, outputs_mask, attn_mask = self.forward_prediction_heads(
+                output,
+                mask_features,
+                attn_mask_target_size=size_list[(i + 1) % self.num_feature_levels]
+            )
             predictions_class.append(outputs_class)
             predictions_mask.append(outputs_mask)
 
