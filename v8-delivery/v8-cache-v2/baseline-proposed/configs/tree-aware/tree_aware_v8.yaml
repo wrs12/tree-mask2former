@@ -1,0 +1,21 @@
+# Architecture example. Replace _BASE_ with your existing tree dataset config.
+_BASE_: ../coco/instance-segmentation/maskformer2_R50_bs16_50ep.yaml
+MODEL:
+  TREE_AWARE:
+    ENABLED: True
+    LEGACY_EDGE_REFINE: False
+    LEGACY_QUERY_ADAPTER: False
+    NUM_GUIDED_QUERIES: -1
+    NMS_KERNEL: 5
+    MASK_FEATURE_FUSION: True
+    CENTER_SIGMA: 2.0
+    CENTER_WEIGHT: 1.0
+    BOUNDARY_WEIGHT: 1.0
+    DISTANCE_WEIGHT: 1.0
+    MASK_BOUNDARY_WEIGHT: 0.1
+    GEOMETRY_MATCH_COST: 0.2
+    SEPARATION_WEIGHT: 0.1
+    SEPARATION_MARGIN: 0.2
+    SEPARATION_RADIUS: 0.15
+    SEPARATION_POS_WEIGHT: 1.0
+    SEPARATION_NEG_WEIGHT: 1.0

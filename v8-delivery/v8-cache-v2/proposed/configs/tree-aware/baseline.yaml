@@ -1,0 +1,8 @@
+# The same parent as V8, with V6B/V7 and all additional losses disabled.
+_BASE_: tree_aware_v8.yaml
+MODEL:
+  TREE_AWARE:
+    ENABLED: False
+    LEGACY_EDGE_REFINE: False
+    LEGACY_QUERY_ADAPTER: False
+    MASK_BOUNDARY_WEIGHT: 0.0

@@ -1,0 +1,1574 @@
+diff --git a/configs/tree-aware/baseline.yaml b/configs/tree-aware/baseline.yaml
+new file mode 100644
+index 0000000..4f06436
+--- /dev/null
++++ b/configs/tree-aware/baseline.yaml
+@@ -0,0 +1,8 @@
++# The same parent as V8, with V6B/V7 and all additional losses disabled.
++_BASE_: tree_aware_v8.yaml
++MODEL:
++  TREE_AWARE:
++    ENABLED: False
++    LEGACY_EDGE_REFINE: False
++    LEGACY_QUERY_ADAPTER: False
++    MASK_BOUNDARY_WEIGHT: 0.0
+diff --git a/configs/tree-aware/tree_aware_v8.yaml b/configs/tree-aware/tree_aware_v8.yaml
+new file mode 100644
+index 0000000..8b891bc
+--- /dev/null
++++ b/configs/tree-aware/tree_aware_v8.yaml
+@@ -0,0 +1,21 @@
++# Architecture example. Replace _BASE_ with your existing tree dataset config.
++_BASE_: ../coco/instance-segmentation/maskformer2_R50_bs16_50ep.yaml
++MODEL:
++  TREE_AWARE:
++    ENABLED: True
++    LEGACY_EDGE_REFINE: False
++    LEGACY_QUERY_ADAPTER: False
++    NUM_GUIDED_QUERIES: -1
++    NMS_KERNEL: 5
++    MASK_FEATURE_FUSION: True
++    CENTER_SIGMA: 2.0
++    CENTER_WEIGHT: 1.0
++    BOUNDARY_WEIGHT: 1.0
++    DISTANCE_WEIGHT: 1.0
++    MASK_BOUNDARY_WEIGHT: 0.1
++    GEOMETRY_MATCH_COST: 0.2
++    SEPARATION_WEIGHT: 0.1
++    SEPARATION_MARGIN: 0.2
++    SEPARATION_RADIUS: 0.15
++    SEPARATION_POS_WEIGHT: 1.0
++    SEPARATION_NEG_WEIGHT: 1.0
+diff --git a/configs/tree-aware/v8_a.yaml b/configs/tree-aware/v8_a.yaml
+new file mode 100644
+index 0000000..7d2a5b8
+--- /dev/null
++++ b/configs/tree-aware/v8_a.yaml
+@@ -0,0 +1,10 @@
++# Query/center stage: other geometry heads remain implicit feature branches.
++_BASE_: tree_aware_v8.yaml
++MODEL:
++  TREE_AWARE:
++    MASK_FEATURE_FUSION: False
++    BOUNDARY_WEIGHT: 0.0
++    DISTANCE_WEIGHT: 0.0
++    MASK_BOUNDARY_WEIGHT: 0.0
++    GEOMETRY_MATCH_COST: 0.0
++    SEPARATION_WEIGHT: 0.0
+diff --git a/configs/tree-aware/v8_a_cache.yaml b/configs/tree-aware/v8_a_cache.yaml
+new file mode 100644
+index 0000000..d1e185d
+--- /dev/null
++++ b/configs/tree-aware/v8_a_cache.yaml
+@@ -0,0 +1,7 @@
++# Export the final notebook cfg before precomputation.
++_BASE_: v8_a.yaml
++MODEL:
++  TREE_AWARE:
++    CACHE_ENABLED: True
++    CACHE_DIR: tree_cache
++    CACHE_MEMORY_ITEMS: 8
+diff --git a/configs/tree-aware/v8_b.yaml b/configs/tree-aware/v8_b.yaml
+new file mode 100644
+index 0000000..3cf2bd9
+--- /dev/null
++++ b/configs/tree-aware/v8_b.yaml
+@@ -0,0 +1,6 @@
++# Add boundary/distance supervision; query separation remains disabled.
++_BASE_: tree_aware_v8.yaml
++MODEL:
++  TREE_AWARE:
++    GEOMETRY_MATCH_COST: 0.0
++    SEPARATION_WEIGHT: 0.0
+diff --git a/configs/tree-aware/v8_b_cache.yaml b/configs/tree-aware/v8_b_cache.yaml
+new file mode 100644
+index 0000000..840df19
+--- /dev/null
++++ b/configs/tree-aware/v8_b_cache.yaml
+@@ -0,0 +1,7 @@
++# Export the final notebook cfg before precomputation.
++_BASE_: v8_b.yaml
++MODEL:
++  TREE_AWARE:
++    CACHE_ENABLED: True
++    CACHE_DIR: tree_cache
++    CACHE_MEMORY_ITEMS: 8
+diff --git a/configs/tree-aware/v8_c.yaml b/configs/tree-aware/v8_c.yaml
+new file mode 100644
+index 0000000..75d14f1
+--- /dev/null
++++ b/configs/tree-aware/v8_c.yaml
+@@ -0,0 +1,2 @@
++# Full V8-C: geometry matching and query separation enabled.
++_BASE_: tree_aware_v8.yaml
+diff --git a/configs/tree-aware/v8_c_cache.yaml b/configs/tree-aware/v8_c_cache.yaml
+new file mode 100644
+index 0000000..50b2cce
+--- /dev/null
++++ b/configs/tree-aware/v8_c_cache.yaml
+@@ -0,0 +1,7 @@
++# Export the final notebook cfg before precomputation.
++_BASE_: v8_c.yaml
++MODEL:
++  TREE_AWARE:
++    CACHE_ENABLED: True
++    CACHE_DIR: tree_cache
++    CACHE_MEMORY_ITEMS: 8
+diff --git a/mask2former/config.py b/mask2former/config.py
+index adc9309..d134e74 100644
+--- a/mask2former/config.py
++++ b/mask2former/config.py
+@@ -112,3 +112,29 @@ def add_maskformer2_config(cfg):
+     # Importance sampling parameter for PointRend point sampling during training. Parametr `beta` in
+     # the original paper.
+     cfg.MODEL.MASK_FORMER.IMPORTANCE_SAMPLE_RATIO = 0.75
++
++
++    # Additive V8 settings: existing configs retain their baseline behavior.
++    cfg.MODEL.TREE_AWARE = CN()
++    cfg.MODEL.TREE_AWARE.ENABLED = False
++    cfg.MODEL.TREE_AWARE.NUM_GUIDED_QUERIES = -1  # auto: half of existing Q
++    cfg.MODEL.TREE_AWARE.NMS_KERNEL = 5
++    cfg.MODEL.TREE_AWARE.MASK_FEATURE_FUSION = True
++    cfg.MODEL.TREE_AWARE.CENTER_SIGMA = 2.0  # feature-map pixels
++    cfg.MODEL.TREE_AWARE.CENTER_WEIGHT = 1.0
++    cfg.MODEL.TREE_AWARE.BOUNDARY_WEIGHT = 1.0
++    cfg.MODEL.TREE_AWARE.DISTANCE_WEIGHT = 1.0
++    cfg.MODEL.TREE_AWARE.GEOMETRY_MATCH_COST = 0.2
++    cfg.MODEL.TREE_AWARE.SEPARATION_WEIGHT = 0.1
++    cfg.MODEL.TREE_AWARE.SEPARATION_MARGIN = 0.2  # cosine similarity
++    cfg.MODEL.TREE_AWARE.SEPARATION_RADIUS = 0.15  # normalized image coordinates
++    cfg.MODEL.TREE_AWARE.SEPARATION_POS_WEIGHT = 1.0
++    cfg.MODEL.TREE_AWARE.SEPARATION_NEG_WEIGHT = 1.0
++    cfg.MODEL.TREE_AWARE.MASK_BOUNDARY_WEIGHT = 0.1
++    cfg.MODEL.TREE_AWARE.LEGACY_EDGE_REFINE = False
++    cfg.MODEL.TREE_AWARE.LEGACY_QUERY_ADAPTER = False
++
++    # Opt-in: custom ITD mapper attaches precomputed CPU targets.
++    cfg.MODEL.TREE_AWARE.CACHE_ENABLED = False
++    cfg.MODEL.TREE_AWARE.CACHE_DIR = "tree_cache"
++    cfg.MODEL.TREE_AWARE.CACHE_MEMORY_ITEMS = 8  # per DataLoader worker
+diff --git a/mask2former/maskformer_model.py b/mask2former/maskformer_model.py
+index 88ce76d..d00896d 100644
+--- a/mask2former/maskformer_model.py
++++ b/mask2former/maskformer_model.py
+@@ -15,6 +15,8 @@ from detectron2.utils.memory import retry_if_cuda_oom
+ 
+ from .modeling.criterion import SetCriterion
+ from .modeling.matcher import HungarianMatcher
++from .modeling.tree_criterion import TreeAwareSetCriterion
++from .modeling.tree_geometry import build_tree_targets, mask_centroids
+ 
+ 
+ @META_ARCH_REGISTRY.register()
+@@ -38,95 +40,138 @@ class MaskFormer(nn.Module):
+         sem_seg_postprocess_before_inference: bool,
+         pixel_mean: Tuple[float],
+         pixel_std: Tuple[float],
+-        # inference
+         semantic_on: bool,
+         panoptic_on: bool,
+         instance_on: bool,
+         test_topk_per_image: int,
++        tree_build_boundary: bool = False,
++        tree_build_distance: bool = False,
++        tree_cache_enabled: bool = False,
++        tree_cache_stride: int = 4,
+     ):
+-        """
+-        Args:
+-            backbone: a backbone module, must follow detectron2's backbone interface
+-            sem_seg_head: a module that predicts semantic segmentation from backbone features
+-            criterion: a module that defines the loss
+-            num_queries: int, number of queries
+-            object_mask_threshold: float, threshold to filter query based on classification score
+-                for panoptic segmentation inference
+-            overlap_threshold: overlap threshold used in general inference for panoptic segmentation
+-            metadata: dataset meta, get `thing` and `stuff` category names for panoptic
+-                segmentation inference
+-            size_divisibility: Some backbones require the input height and width to be divisible by a
+-                specific integer. We can use this to override such requirement.
+-            sem_seg_postprocess_before_inference: whether to resize the prediction back
+-                to original input size before semantic segmentation inference or after.
+-                For high-resolution dataset like Mapillary, resizing predictions before
+-                inference will cause OOM error.
+-            pixel_mean, pixel_std: list or tuple with #channels element, representing
+-                the per-channel mean and std to be used to normalize the input image
+-            semantic_on: bool, whether to output semantic segmentation prediction
+-            instance_on: bool, whether to output instance segmentation prediction
+-            panoptic_on: bool, whether to output panoptic segmentation prediction
+-            test_topk_per_image: int, instance segmentation parameter, keep topk instances per image
+-        """
+         super().__init__()
++
+         self.backbone = backbone
+         self.sem_seg_head = sem_seg_head
+         self.criterion = criterion
++        self.tree_enabled = getattr(getattr(sem_seg_head, "predictor", None), "tree_enabled", False)
+         self.num_queries = num_queries
+         self.overlap_threshold = overlap_threshold
+         self.object_mask_threshold = object_mask_threshold
+         self.metadata = metadata
++
+         if size_divisibility < 0:
+-            # use backbone size_divisibility if not set
+             size_divisibility = self.backbone.size_divisibility
++
+         self.size_divisibility = size_divisibility
+-        self.sem_seg_postprocess_before_inference = sem_seg_postprocess_before_inference
+-        self.register_buffer("pixel_mean", torch.Tensor(pixel_mean).view(-1, 1, 1), False)
+-        self.register_buffer("pixel_std", torch.Tensor(pixel_std).view(-1, 1, 1), False)
++        self.sem_seg_postprocess_before_inference = (
++            sem_seg_postprocess_before_inference
++        )
++
++        self.register_buffer(
++            "pixel_mean",
++            torch.Tensor(pixel_mean).view(-1, 1, 1),
++            False,
++        )
++
++        self.register_buffer(
++            "pixel_std",
++            torch.Tensor(pixel_std).view(-1, 1, 1),
++            False,
++        )
+ 
+-        # additional args
+         self.semantic_on = semantic_on
+         self.instance_on = instance_on
+         self.panoptic_on = panoptic_on
+         self.test_topk_per_image = test_topk_per_image
++        self.tree_build_boundary = tree_build_boundary
++        self.tree_build_distance = tree_build_distance
++        self.tree_cache_enabled = tree_cache_enabled
++        self.tree_cache_stride = tree_cache_stride
+ 
+         if not self.semantic_on:
+             assert self.sem_seg_postprocess_before_inference
+ 
++
+     @classmethod
+     def from_config(cls, cfg):
+         backbone = build_backbone(cfg)
+-        sem_seg_head = build_sem_seg_head(cfg, backbone.output_shape())
+ 
+-        # Loss parameters:
++        sem_seg_head = build_sem_seg_head(
++            cfg,
++            backbone.output_shape(),
++        )
++
+         deep_supervision = cfg.MODEL.MASK_FORMER.DEEP_SUPERVISION
+         no_object_weight = cfg.MODEL.MASK_FORMER.NO_OBJECT_WEIGHT
+ 
+-        # loss weights
+         class_weight = cfg.MODEL.MASK_FORMER.CLASS_WEIGHT
+         dice_weight = cfg.MODEL.MASK_FORMER.DICE_WEIGHT
+         mask_weight = cfg.MODEL.MASK_FORMER.MASK_WEIGHT
+ 
+-        # building criterion
++        tree = cfg.MODEL.TREE_AWARE
++        if tree.LEGACY_EDGE_REFINE or tree.LEGACY_QUERY_ADAPTER:
++            raise ValueError('Baseline-based V8 has no V6B/V7 modules; keep both LEGACY flags False')
++        if tree.ENABLED and not getattr(getattr(sem_seg_head, 'predictor', None), 'tree_enabled', False):
++            raise ValueError('V8 requires MultiScaleMaskedTransformerDecoder')
++
+         matcher = HungarianMatcher(
+             cost_class=class_weight,
+             cost_mask=mask_weight,
+             cost_dice=dice_weight,
+             num_points=cfg.MODEL.MASK_FORMER.TRAIN_NUM_POINTS,
++            cost_geometry=tree.GEOMETRY_MATCH_COST if tree.ENABLED else 0.0,
+         )
+ 
+-        weight_dict = {"loss_ce": class_weight, "loss_mask": mask_weight, "loss_dice": dice_weight}
++        weight_dict = {
++            "loss_ce": class_weight,
++            "loss_mask": mask_weight,
++            "loss_dice": dice_weight,
++        }
+ 
+         if deep_supervision:
+             dec_layers = cfg.MODEL.MASK_FORMER.DEC_LAYERS
+             aux_weight_dict = {}
++
+             for i in range(dec_layers - 1):
+-                aux_weight_dict.update({k + f"_{i}": v for k, v in weight_dict.items()})
+-            weight_dict.update(aux_weight_dict)
++                aux_weight_dict.update(
++                    {
++                        k + f"_{i}": v
++                        for k, v in weight_dict.items()
++                    }
++                )
+ 
+-        losses = ["labels", "masks"]
++            weight_dict.update(aux_weight_dict)
+ 
+-        criterion = SetCriterion(
++        # Geometry, separation, and matched boundary losses are final-only.
++        if tree.MASK_BOUNDARY_WEIGHT > 0:
++            weight_dict['loss_boundary'] = tree.MASK_BOUNDARY_WEIGHT
++        if tree.ENABLED:
++            weight_dict.update({
++                'loss_tree_center': tree.CENTER_WEIGHT,
++                'loss_tree_boundary': tree.BOUNDARY_WEIGHT,
++                'loss_tree_distance': tree.DISTANCE_WEIGHT,
++                'loss_query_separation': tree.SEPARATION_WEIGHT,
++            })
++
++        losses = [
++            "labels",
++            "masks",
++        ]
++
++        criterion_class = TreeAwareSetCriterion if tree.ENABLED else SetCriterion
++        tree_arguments = {}
++        if tree.ENABLED:
++            if tree.CENTER_WEIGHT <= 0:
++                raise ValueError('V8 hard Top-K queries require CENTER_WEIGHT > 0')
++            tree_arguments = {
++                'center_sigma': tree.CENTER_SIGMA,
++                'separation_margin': tree.SEPARATION_MARGIN,
++                'separation_radius': tree.SEPARATION_RADIUS,
++                'positive_weight': tree.SEPARATION_POS_WEIGHT,
++                'negative_weight': tree.SEPARATION_NEG_WEIGHT,
++            }
++        criterion = criterion_class(
+             sem_seg_head.num_classes,
+             matcher=matcher,
+             weight_dict=weight_dict,
+@@ -135,6 +180,7 @@ class MaskFormer(nn.Module):
+             num_points=cfg.MODEL.MASK_FORMER.TRAIN_NUM_POINTS,
+             oversample_ratio=cfg.MODEL.MASK_FORMER.OVERSAMPLE_RATIO,
+             importance_sample_ratio=cfg.MODEL.MASK_FORMER.IMPORTANCE_SAMPLE_RATIO,
++            **tree_arguments,
+         )
+ 
+         return {
+@@ -142,10 +188,18 @@ class MaskFormer(nn.Module):
+             "sem_seg_head": sem_seg_head,
+             "criterion": criterion,
+             "num_queries": cfg.MODEL.MASK_FORMER.NUM_OBJECT_QUERIES,
+-            "object_mask_threshold": cfg.MODEL.MASK_FORMER.TEST.OBJECT_MASK_THRESHOLD,
+-            "overlap_threshold": cfg.MODEL.MASK_FORMER.TEST.OVERLAP_THRESHOLD,
+-            "metadata": MetadataCatalog.get(cfg.DATASETS.TRAIN[0]),
+-            "size_divisibility": cfg.MODEL.MASK_FORMER.SIZE_DIVISIBILITY,
++            "object_mask_threshold": (
++                cfg.MODEL.MASK_FORMER.TEST.OBJECT_MASK_THRESHOLD
++            ),
++            "overlap_threshold": (
++                cfg.MODEL.MASK_FORMER.TEST.OVERLAP_THRESHOLD
++            ),
++            "metadata": MetadataCatalog.get(
++                cfg.DATASETS.TRAIN[0]
++            ),
++            "size_divisibility": (
++                cfg.MODEL.MASK_FORMER.SIZE_DIVISIBILITY
++            ),
+             "sem_seg_postprocess_before_inference": (
+                 cfg.MODEL.MASK_FORMER.TEST.SEM_SEG_POSTPROCESSING_BEFORE_INFERENCE
+                 or cfg.MODEL.MASK_FORMER.TEST.PANOPTIC_ON
+@@ -153,130 +207,214 @@ class MaskFormer(nn.Module):
+             ),
+             "pixel_mean": cfg.MODEL.PIXEL_MEAN,
+             "pixel_std": cfg.MODEL.PIXEL_STD,
+-            # inference
+             "semantic_on": cfg.MODEL.MASK_FORMER.TEST.SEMANTIC_ON,
+             "instance_on": cfg.MODEL.MASK_FORMER.TEST.INSTANCE_ON,
+             "panoptic_on": cfg.MODEL.MASK_FORMER.TEST.PANOPTIC_ON,
+             "test_topk_per_image": cfg.TEST.DETECTIONS_PER_IMAGE,
++            "tree_build_boundary": tree.BOUNDARY_WEIGHT > 0,
++            "tree_build_distance": tree.DISTANCE_WEIGHT > 0,
++            "tree_cache_enabled": tree.CACHE_ENABLED,
++            "tree_cache_stride": cfg.MODEL.SEM_SEG_HEAD.COMMON_STRIDE,
+         }
+ 
++
+     @property
+     def device(self):
+         return self.pixel_mean.device
+ 
+     def forward(self, batched_inputs):
+-        """
+-        Args:
+-            batched_inputs: a list, batched outputs of :class:`DatasetMapper`.
+-                Each item in the list contains the inputs for one image.
+-                For now, each item in the list is a dict that contains:
+-                   * "image": Tensor, image in (C, H, W) format.
+-                   * "instances": per-region ground truth
+-                   * Other information that's included in the original dicts, such as:
+-                     "height", "width" (int): the output resolution of the model (may be different
+-                     from input resolution), used in inference.
+-        Returns:
+-            list[dict]:
+-                each dict has the results for one image. The dict contains the following keys:
+-
+-                * "sem_seg":
+-                    A Tensor that represents the
+-                    per-pixel segmentation prediced by the head.
+-                    The prediction has shape KxHxW that represents the logits of
+-                    each class for each pixel.
+-                * "panoptic_seg":
+-                    A tuple that represent panoptic output
+-                    panoptic_seg (Tensor): of shape (height, width) where the values are ids for each segment.
+-                    segments_info (list[dict]): Describe each segment in `panoptic_seg`.
+-                        Each dict contains keys "id", "category_id", "isthing".
+-        """
+-        images = [x["image"].to(self.device) for x in batched_inputs]
+-        images = [(x - self.pixel_mean) / self.pixel_std for x in images]
+-        images = ImageList.from_tensors(images, self.size_divisibility)
+-
+-        features = self.backbone(images.tensor)
+-        outputs = self.sem_seg_head(features)
++        images = [
++            x["image"].to(self.device)
++            for x in batched_inputs
++        ]
++
++        images = [
++            (x - self.pixel_mean) / self.pixel_std
++            for x in images
++        ]
++
++        images = ImageList.from_tensors(
++            images,
++            self.size_divisibility,
++        )
++
++        features = self.backbone(
++            images.tensor
++        )
++
++        padding_mask = None
++        if self.tree_enabled:
++            padding_mask = torch.ones(
++                images.tensor.shape[0], *images.tensor.shape[-2:],
++                dtype=torch.bool, device=images.tensor.device,
++            )
++            for batch, (height, width) in enumerate(images.image_sizes):
++                padding_mask[batch, :height, :width] = False
++        outputs = self.sem_seg_head(features, padding_mask)
+ 
+         if self.training:
+-            # mask classification target
+             if "instances" in batched_inputs[0]:
+-                gt_instances = [x["instances"].to(self.device) for x in batched_inputs]
+-                targets = self.prepare_targets(gt_instances, images)
++                gt_instances = [
++                    x["instances"].to(self.device)
++                    for x in batched_inputs
++                ]
++
++                targets = self.prepare_targets(
++                    gt_instances,
++                    images,
++                    batched_inputs=batched_inputs,
++                    geometry_size=(
++                        outputs['tree_geometry']['center_logits'].shape[-2:]
++                        if self.tree_enabled else None
++                    ),
++                )
++
+             else:
+                 targets = None
+ 
+-            # bipartite matching-based loss
+-            losses = self.criterion(outputs, targets)
++            losses = self.criterion(
++                outputs,
++                targets,
++            )
+ 
+             for k in list(losses.keys()):
+                 if k in self.criterion.weight_dict:
+                     losses[k] *= self.criterion.weight_dict[k]
++
+                 else:
+-                    # remove this loss if not specified in `weight_dict`
+                     losses.pop(k)
+-            return losses
+-        else:
+-            mask_cls_results = outputs["pred_logits"]
+-            mask_pred_results = outputs["pred_masks"]
+-            # upsample masks
+-            mask_pred_results = F.interpolate(
+-                mask_pred_results,
+-                size=(images.tensor.shape[-2], images.tensor.shape[-1]),
+-                mode="bilinear",
+-                align_corners=False,
+-            )
+ 
+-            del outputs
++            return losses
+ 
+-            processed_results = []
+-            for mask_cls_result, mask_pred_result, input_per_image, image_size in zip(
+-                mask_cls_results, mask_pred_results, batched_inputs, images.image_sizes
+-            ):
+-                height = input_per_image.get("height", image_size[0])
+-                width = input_per_image.get("width", image_size[1])
+-                processed_results.append({})
++        mask_cls_results = outputs["pred_logits"]
++        mask_pred_results = outputs["pred_masks"]
++        # upsample masks
++        mask_pred_results = F.interpolate(
++            mask_pred_results,
++            size=(images.tensor.shape[-2], images.tensor.shape[-1]),
++            mode="bilinear",
++            align_corners=False,
++        )
+ 
+-                if self.sem_seg_postprocess_before_inference:
+-                    mask_pred_result = retry_if_cuda_oom(sem_seg_postprocess)(
+-                        mask_pred_result, image_size, height, width
+-                    )
+-                    mask_cls_result = mask_cls_result.to(mask_pred_result)
+-
+-                # semantic segmentation inference
+-                if self.semantic_on:
+-                    r = retry_if_cuda_oom(self.semantic_inference)(mask_cls_result, mask_pred_result)
+-                    if not self.sem_seg_postprocess_before_inference:
+-                        r = retry_if_cuda_oom(sem_seg_postprocess)(r, image_size, height, width)
+-                    processed_results[-1]["sem_seg"] = r
+-
+-                # panoptic segmentation inference
+-                if self.panoptic_on:
+-                    panoptic_r = retry_if_cuda_oom(self.panoptic_inference)(mask_cls_result, mask_pred_result)
+-                    processed_results[-1]["panoptic_seg"] = panoptic_r
+-                
+-                # instance segmentation inference
+-                if self.instance_on:
+-                    instance_r = retry_if_cuda_oom(self.instance_inference)(mask_cls_result, mask_pred_result)
+-                    processed_results[-1]["instances"] = instance_r
+-
+-            return processed_results
+-
+-    def prepare_targets(self, targets, images):
++        del outputs
++
++        processed_results = []
++        for mask_cls_result, mask_pred_result, input_per_image, image_size in zip(
++            mask_cls_results, mask_pred_results, batched_inputs, images.image_sizes
++        ):
++            height = input_per_image.get("height", image_size[0])
++            width = input_per_image.get("width", image_size[1])
++            processed_results.append({})
++
++            if self.sem_seg_postprocess_before_inference:
++                mask_pred_result = retry_if_cuda_oom(sem_seg_postprocess)(
++                    mask_pred_result, image_size, height, width
++                )
++                mask_cls_result = mask_cls_result.to(mask_pred_result)
++
++            # semantic segmentation inference
++            if self.semantic_on:
++                r = retry_if_cuda_oom(self.semantic_inference)(mask_cls_result, mask_pred_result)
++                if not self.sem_seg_postprocess_before_inference:
++                    r = retry_if_cuda_oom(sem_seg_postprocess)(r, image_size, height, width)
++                processed_results[-1]["sem_seg"] = r
++
++            # panoptic segmentation inference
++            if self.panoptic_on:
++                panoptic_r = retry_if_cuda_oom(self.panoptic_inference)(mask_cls_result, mask_pred_result)
++                processed_results[-1]["panoptic_seg"] = panoptic_r
++            
++            # instance segmentation inference
++            if self.instance_on:
++                instance_r = retry_if_cuda_oom(self.instance_inference)(mask_cls_result, mask_pred_result)
++                processed_results[-1]["instances"] = instance_r
++
++        return processed_results
++
++
++    def prepare_targets(self, targets, images, geometry_size=None, batched_inputs=None):
+         h_pad, w_pad = images.tensor.shape[-2:]
++
+         new_targets = []
+-        for targets_per_image in targets:
+-            # pad gt
++
++        for batch, targets_per_image in enumerate(targets):
+             gt_masks = targets_per_image.gt_masks
+-            padded_masks = torch.zeros((gt_masks.shape[0], h_pad, w_pad), dtype=gt_masks.dtype, device=gt_masks.device)
+-            padded_masks[:, : gt_masks.shape[1], : gt_masks.shape[2]] = gt_masks
+-            new_targets.append(
+-                {
+-                    "labels": targets_per_image.gt_classes,
+-                    "masks": padded_masks,
+-                }
++            if isinstance(gt_masks, BitMasks):
++                gt_masks = gt_masks.tensor
++
++            padded_masks = torch.zeros(
++                (
++                    gt_masks.shape[0],
++                    h_pad,
++                    w_pad,
++                ),
++                dtype=gt_masks.dtype,
++                device=gt_masks.device,
+             )
++
++            padded_masks[
++                :,
++                : gt_masks.shape[1],
++                : gt_masks.shape[2],
++            ] = gt_masks
++
++            target = {
++                'labels': targets_per_image.gt_classes,
++                'masks': padded_masks,
++            }
++            if geometry_size is not None:
++                height, width = images.image_sizes[batch]
++                padding = torch.ones((h_pad, w_pad), device=gt_masks.device, dtype=torch.bool)
++                padding[:height, :width] = False
++                target['padding_mask'] = padding
++                if self.tree_cache_enabled:
++                    if batched_inputs is None or 'tree_geometry_cache' not in batched_inputs[batch]:
++                        raise ValueError('CACHE_ENABLED requires the updated ITD mapper and offline cache')
++                    cached = batched_inputs[batch]['tree_geometry_cache']
++                    meta = cached['meta']
++                    if tuple(meta['image_size']) != (height, width):
++                        raise ValueError('Cached geometry image size differs from augmented input')
++                    stride = self.tree_cache_stride
++                    if (h_pad, w_pad) != (geometry_size[0] * stride, geometry_size[1] * stride):
++                        raise ValueError('Geometry output stride differs from offline cache')
++                    if meta['stride'] != stride or meta['divisor'] != self.size_divisibility:
++                        raise ValueError('Cached geometry stride or padding divisor changed')
++                    if meta['sigma'] != self.criterion.center_sigma:
++                        raise ValueError('Cached center sigma changed')
++                    gh, gw = meta['feature_size']
++                    if gh > geometry_size[0] or gw > geometry_size[1]:
++                        raise ValueError('Cached geometry is larger than the current batch')
++                    fields = ['center', 'valid']
++                    if self.tree_build_boundary:
++                        fields.append('boundary')
++                    if self.tree_build_distance:
++                        fields.extend(('distance', 'foreground'))
++                    geometry = {}
++                    for field in fields:
++                        tensor = cached['maps'][field]
++                        if tuple(tensor.shape) != (gh, gw):
++                            raise ValueError('Cached geometry map shape mismatch')
++                        dtype = torch.bool if field == 'valid' else torch.float32
++                        tensor = tensor.to(device=gt_masks.device, dtype=dtype)
++                        geometry[field] = F.pad(tensor, (0, geometry_size[1] - gw,
++                                                       0, geometry_size[0] - gh))
++                    centroids = cached['centroid_pixels'].to(device=gt_masks.device, dtype=torch.float32)
++                    if centroids.shape != (gt_masks.shape[0], 2):
++                        raise ValueError('Cached instance ordering/count changed')
++                    target['tree_centroids'] = centroids / centroids.new_tensor([w_pad, h_pad])
++                    target['tree_geometry'] = geometry
++                else:
++                    target['tree_centroids'] = mask_centroids(padded_masks.float(), ~padding)
++                    target['tree_geometry'] = build_tree_targets(
++                        padded_masks, padding, geometry_size, self.criterion.center_sigma,
++                        build_boundary=self.tree_build_boundary,
++                        build_distance=self.tree_build_distance,
++                    )
++            new_targets.append(target)
++
+         return new_targets
+ 
++
+     def semantic_inference(self, mask_cls, mask_pred):
+         mask_cls = F.softmax(mask_cls, dim=-1)[..., :-1]
+         mask_pred = mask_pred.sigmoid()
+diff --git a/mask2former/modeling/criterion.py b/mask2former/modeling/criterion.py
+index 878ae75..9622770 100644
+--- a/mask2former/modeling/criterion.py
++++ b/mask2former/modeling/criterion.py
+@@ -87,6 +87,49 @@ def calculate_uncertainty(logits):
+     return -(torch.abs(gt_class_logits))
+ 
+ 
++def morphological_boundary(masks, kernel_size=3):
++    """
++    Compute a differentiable morphological boundary map.
++
++    Args:
++        masks:
++            [N, 1, H, W], values in [0, 1]
++
++    Returns:
++        boundaries:
++            [N, 1, H, W]
++
++    Boundary:
++        dilation(mask) - erosion(mask)
++    """
++
++    assert masks.dim() == 4
++    assert masks.shape[1] == 1
++    assert kernel_size >= 3
++    assert kernel_size % 2 == 1
++
++    padding = kernel_size // 2
++
++    dilated = F.max_pool2d(
++        masks,
++        kernel_size=kernel_size,
++        stride=1,
++        padding=padding,
++    )
++
++    eroded = 1.0 - F.max_pool2d(
++        1.0 - masks,
++        kernel_size=kernel_size,
++        stride=1,
++        padding=padding,
++    )
++
++    boundaries = (dilated - eroded).clamp(min=0.0, max=1.0)
++
++    return boundaries
++
++
++
+ class SetCriterion(nn.Module):
+     """This class computes the loss for DETR.
+     The process happens in two steps:
+diff --git a/mask2former/modeling/matcher.py b/mask2former/modeling/matcher.py
+index 7be15b1..a23b39d 100644
+--- a/mask2former/modeling/matcher.py
++++ b/mask2former/modeling/matcher.py
+@@ -11,6 +11,8 @@ from torch.cuda.amp import autocast
+ 
+ from detectron2.projects.point_rend.point_features import point_sample
+ 
++from .tree_geometry import mask_centroids, resize_padding_mask
++
+ 
+ def batch_dice_loss(inputs: torch.Tensor, targets: torch.Tensor):
+     """
+@@ -75,7 +77,7 @@ class HungarianMatcher(nn.Module):
+     while the others are un-matched (and thus treated as non-objects).
+     """
+ 
+-    def __init__(self, cost_class: float = 1, cost_mask: float = 1, cost_dice: float = 1, num_points: int = 0):
++    def __init__(self, cost_class: float = 1, cost_mask: float = 1, cost_dice: float = 1, num_points: int = 0, cost_geometry: float = 0):
+         """Creates the matcher
+ 
+         Params:
+@@ -87,6 +89,7 @@ class HungarianMatcher(nn.Module):
+         self.cost_class = cost_class
+         self.cost_mask = cost_mask
+         self.cost_dice = cost_dice
++        self.cost_geometry = cost_geometry
+ 
+         assert cost_class != 0 or cost_mask != 0 or cost_dice != 0, "all costs cant be 0"
+ 
+@@ -104,6 +107,9 @@ class HungarianMatcher(nn.Module):
+ 
+             out_prob = outputs["pred_logits"][b].softmax(-1)  # [num_queries, num_classes]
+             tgt_ids = targets[b]["labels"]
++            if tgt_ids.numel() == 0:
++                indices.append(([], []))
++                continue
+ 
+             # Compute the classification cost. Contrary to the loss, we don't use the NLL,
+             # but approximate it in 1 - proba[target class].
+@@ -146,6 +152,16 @@ class HungarianMatcher(nn.Module):
+                 + self.cost_class * cost_class
+                 + self.cost_dice * cost_dice
+             )
++            if self.cost_geometry != 0:
++                logits = outputs['pred_masks'][b]
++                valid = ~resize_padding_mask(
++                    targets[b]['padding_mask'][None], logits.shape[-2:]
++                )[0]
++                predicted_centers = mask_centroids(logits.sigmoid(), valid)
++                target_centers = targets[b]['tree_centroids'].to(predicted_centers)
++                C = C + self.cost_geometry * torch.cdist(
++                    predicted_centers, target_centers, p=1
++                )
+             C = C.reshape(num_queries, -1).cpu()
+ 
+             indices.append(linear_sum_assignment(C))
+@@ -184,6 +200,7 @@ class HungarianMatcher(nn.Module):
+             "cost_class: {}".format(self.cost_class),
+             "cost_mask: {}".format(self.cost_mask),
+             "cost_dice: {}".format(self.cost_dice),
++            "cost_geometry: {}".format(self.cost_geometry),
+         ]
+         lines = [head] + [" " * _repr_indent + line for line in body]
+         return "\n".join(lines)
+diff --git a/mask2former/modeling/transformer_decoder/mask2former_transformer_decoder.py b/mask2former/modeling/transformer_decoder/mask2former_transformer_decoder.py
+index 52594f6..d6f866c 100644
+--- a/mask2former/modeling/transformer_decoder/mask2former_transformer_decoder.py
++++ b/mask2former/modeling/transformer_decoder/mask2former_transformer_decoder.py
+@@ -12,6 +12,7 @@ from detectron2.layers import Conv2d
+ 
+ from .position_encoding import PositionEmbeddingSine
+ from .maskformer_transformer_decoder import TRANSFORMER_DECODER_REGISTRY
++from ..tree_geometry import TreeGeometryEncoder, TreeAwareQueryGenerator
+ 
+ 
+ class SelfAttentionLayer(nn.Module):
+@@ -247,6 +248,11 @@ class MultiScaleMaskedTransformerDecoder(nn.Module):
+         pre_norm: bool,
+         mask_dim: int,
+         enforce_input_project: bool,
++        tree_enabled: bool = False,
++        tree_separation_enabled: bool = True,
++        num_guided_queries: int = -1,
++        tree_nms_kernel: int = 5,
++        tree_mask_feature_fusion: bool = True,
+     ):
+         """
+         NOTE: this interface is experimental.
+@@ -316,7 +322,6 @@ class MultiScaleMaskedTransformerDecoder(nn.Module):
+         self.query_feat = nn.Embedding(num_queries, hidden_dim)
+         # learnable query p.e.
+         self.query_embed = nn.Embedding(num_queries, hidden_dim)
+-
+         # level embedding (we always use 3 scales)
+         self.num_feature_levels = 3
+         self.level_embed = nn.Embedding(self.num_feature_levels, hidden_dim)
+@@ -332,6 +337,14 @@ class MultiScaleMaskedTransformerDecoder(nn.Module):
+         if self.mask_classification:
+             self.class_embed = nn.Linear(hidden_dim, num_classes + 1)
+         self.mask_embed = MLP(hidden_dim, hidden_dim, mask_dim, 3)
++        self.tree_enabled = tree_enabled
++        self.tree_separation_enabled = tree_separation_enabled
++        self.tree_mask_feature_fusion = tree_mask_feature_fusion
++        if self.tree_enabled:
++            self.tree_geometry_encoder = TreeGeometryEncoder(mask_dim)
++            self.tree_query_generator = TreeAwareQueryGenerator(
++                mask_dim, hidden_dim, num_queries, num_guided_queries, tree_nms_kernel
++            )
+ 
+     @classmethod
+     def from_config(cls, cfg, in_channels, mask_classification):
+@@ -357,6 +370,12 @@ class MultiScaleMaskedTransformerDecoder(nn.Module):
+         ret["enforce_input_project"] = cfg.MODEL.MASK_FORMER.ENFORCE_INPUT_PROJ
+ 
+         ret["mask_dim"] = cfg.MODEL.SEM_SEG_HEAD.MASK_DIM
++        tree = cfg.MODEL.TREE_AWARE
++        ret["tree_enabled"] = tree.ENABLED
++        ret["tree_separation_enabled"] = tree.SEPARATION_WEIGHT > 0
++        ret["num_guided_queries"] = tree.NUM_GUIDED_QUERIES
++        ret["tree_nms_kernel"] = tree.NMS_KERNEL
++        ret["tree_mask_feature_fusion"] = tree.MASK_FEATURE_FUSION
+ 
+         return ret
+ 
+@@ -367,8 +386,8 @@ class MultiScaleMaskedTransformerDecoder(nn.Module):
+         pos = []
+         size_list = []
+ 
+-        # disable mask, it does not affect performance
+-        del mask
++        # Original attention masking stays unchanged; V8 uses mask for peak selection.
++        padding_mask = mask
+ 
+         for i in range(self.num_feature_levels):
+             size_list.append(x[i].shape[-2:])
+@@ -384,6 +403,15 @@ class MultiScaleMaskedTransformerDecoder(nn.Module):
+         # QxNxC
+         query_embed = self.query_embed.weight.unsqueeze(1).repeat(1, bs, 1)
+         output = self.query_feat.weight.unsqueeze(1).repeat(1, bs, 1)
++        tree_geometry = None
++        if self.tree_enabled:
++            geometry_features, tree_geometry = self.tree_geometry_encoder(mask_features)
++            output = self.tree_query_generator(
++                geometry_features, tree_geometry['center_logits'], output, padding_mask
++            )
++            if self.tree_mask_feature_fusion:
++                mask_features = geometry_features
++        query_states = [] if self.tree_enabled and self.tree_separation_enabled and self.training else None
+ 
+         predictions_class = []
+         predictions_mask = []
+@@ -392,6 +420,8 @@ class MultiScaleMaskedTransformerDecoder(nn.Module):
+         outputs_class, outputs_mask, attn_mask = self.forward_prediction_heads(output, mask_features, attn_mask_target_size=size_list[0])
+         predictions_class.append(outputs_class)
+         predictions_mask.append(outputs_mask)
++        if query_states is not None:
++            query_states.append(self.decoder_norm(output).transpose(0, 1))
+ 
+         for i in range(self.num_layers):
+             level_index = i % self.num_feature_levels
+@@ -415,9 +445,15 @@ class MultiScaleMaskedTransformerDecoder(nn.Module):
+                 output
+             )
+ 
+-            outputs_class, outputs_mask, attn_mask = self.forward_prediction_heads(output, mask_features, attn_mask_target_size=size_list[(i + 1) % self.num_feature_levels])
++            outputs_class, outputs_mask, attn_mask = self.forward_prediction_heads(
++                output,
++                mask_features,
++                attn_mask_target_size=size_list[(i + 1) % self.num_feature_levels]
++            )
+             predictions_class.append(outputs_class)
+             predictions_mask.append(outputs_mask)
++            if query_states is not None:
++                query_states.append(self.decoder_norm(output).transpose(0, 1))
+ 
+         assert len(predictions_class) == self.num_layers + 1
+ 
+@@ -428,6 +464,12 @@ class MultiScaleMaskedTransformerDecoder(nn.Module):
+                 predictions_class if self.mask_classification else None, predictions_mask
+             )
+         }
++        if self.tree_enabled and self.training:
++            out['tree_geometry'] = tree_geometry
++            if query_states is not None:
++                out['query_features'] = query_states[-1]
++                for prediction, features in zip(out['aux_outputs'], query_states[:-1]):
++                    prediction['query_features'] = features
+         return out
+ 
+     def forward_prediction_heads(self, output, mask_features, attn_mask_target_size):
+diff --git a/mask2former/modeling/tree_criterion.py b/mask2former/modeling/tree_criterion.py
+new file mode 100644
+index 0000000..fd77c5d
+--- /dev/null
++++ b/mask2former/modeling/tree_criterion.py
+@@ -0,0 +1,161 @@
++import torch
++from torch.nn import functional as F
++
++from detectron2.utils.comm import get_world_size
++
++from .criterion import SetCriterion, morphological_boundary
++from .tree_geometry import resize_padding_mask
++from ..utils.misc import is_dist_avail_and_initialized
++
++
++class TreeAwareSetCriterion(SetCriterion):
++    def __init__(self, *args, center_sigma=2.0, separation_margin=0.2,
++                 separation_radius=0.15, positive_weight=1.0, negative_weight=1.0,
++                 **kwargs):
++        super().__init__(*args, **kwargs)
++        if center_sigma <= 0:
++            raise ValueError('CENTER_SIGMA must be positive')
++        if not -1 <= separation_margin <= 1:
++            raise ValueError('SEPARATION_MARGIN must be in [-1, 1]')
++        self.center_sigma = center_sigma
++        self.separation_margin = separation_margin
++        self.separation_radius = separation_radius
++        self.positive_weight = positive_weight
++        self.negative_weight = negative_weight
++
++    def loss_masks(self, outputs, targets, indices, num_masks):
++        # PointRend sampling does not need to run for an empty assignment.
++        if sum(src.numel() for src, _ in indices) == 0:
++            zero = outputs['pred_masks'].sum() * 0.0
++            return {'loss_mask': zero, 'loss_dice': zero}
++        return super().loss_masks(outputs, targets, indices, num_masks)
++
++    def loss_boundary(self, outputs, targets, indices, num_masks):
++        logits = outputs['pred_masks']
++        total = logits.sum() * 0.0
++        size = logits.shape[-2:]
++        for batch, (src, tgt) in enumerate(indices):
++            if src.numel() == 0:
++                continue
++            src = src.to(logits.device)
++            tgt = tgt.to(targets[batch]['masks'].device)
++            valid = ~resize_padding_mask(targets[batch]['padding_mask'][None], size)[0]
++            predicted = logits[batch, src, None].float().sigmoid() * valid
++            expected = F.interpolate(
++                targets[batch]['masks'][tgt, None].float(), size, mode='nearest'
++            ) * valid
++            predicted = (morphological_boundary(predicted) * valid).flatten(1)
++            expected = (morphological_boundary(expected) * valid).flatten(1)
++            loss = 1 - (2 * (predicted * expected).sum(1) + 1) / (
++                predicted.sum(1) + expected.sum(1) + 1
++            )
++            total = total + (loss * (expected.sum(1) > 0)).sum()
++        return {'loss_boundary': total / num_masks}
++
++    def loss_geometry(self, outputs, targets):
++        maps = outputs['tree_geometry']
++        geometry = [target['tree_geometry'] for target in targets]
++        valid = torch.stack([target['valid'] for target in geometry]).float()
++        result = {}
++
++        if self.weight_dict.get('loss_tree_center', 0) > 0:
++            target = torch.stack([item['center'] for item in geometry])
++            p = maps['center_logits'][:, 0].float().sigmoid().clamp(1e-4, 1 - 1e-4)
++            positive = (target == 1).float() * valid
++            negative = (target < 1).float() * valid
++            pos_loss = -p.log() * (1 - p).pow(2) * positive
++            neg_loss = -(1 - p).log() * p.pow(2) * (1 - target).pow(4) * negative
++            pos_count = positive.sum((1, 2))
++            denominator = torch.where(pos_count > 0, pos_count, valid.sum((1, 2))).clamp_min(1)
++            result['loss_tree_center'] = ((pos_loss + neg_loss).sum((1, 2)) / denominator).mean()
++
++        if self.weight_dict.get('loss_tree_boundary', 0) > 0:
++            target = torch.stack([item['boundary'] for item in geometry])
++            logits = maps['boundary_logits'][:, 0].float()
++            pos = (target * valid).sum()
++            pos_weight = ((valid.sum() - pos) / pos.clamp_min(1)).clamp(1, 20)
++            bce = F.binary_cross_entropy_with_logits(logits, target, reduction='none')
++            bce = (bce * torch.where(target > 0, pos_weight, 1.0) * valid).sum() / valid.sum().clamp_min(1)
++            predicted = logits.sigmoid() * valid
++            numerator = 2 * (predicted * target).sum((1, 2)) + 1
++            denominator = predicted.sum((1, 2)) + (target * valid).sum((1, 2)) + 1
++            result['loss_tree_boundary'] = bce + (1 - numerator / denominator).mean()
++
++        if self.weight_dict.get('loss_tree_distance', 0) > 0:
++            target = torch.stack([item['distance'] for item in geometry])
++            foreground = torch.stack([item['foreground'] for item in geometry]) * valid
++            background = (1 - foreground) * valid
++            predicted = maps['distance_logits'][:, 0].float().sigmoid()
++            error = F.smooth_l1_loss(predicted, target, reduction='none')
++            fg_loss = (error * foreground).sum() / foreground.sum().clamp_min(1)
++            bg_loss = (error * background).sum() / background.sum().clamp_min(1)
++            result['loss_tree_distance'] = fg_loss + 0.1 * bg_loss
++        return result
++
++    def loss_separation(self, outputs, indices, aux_outputs, aux_indices, targets):
++        features = outputs['query_features'].float()
++        zero = features.sum() * 0.0
++        positive_total = zero
++        negative_total = zero
++        positive_count = 0
++        negative_count = features.new_zeros(())
++        # Each state is matched independently; query slot IDs need not coincide.
++        states = list(zip(aux_outputs, aux_indices)) + [(outputs, indices)]
++        for batch, (src, tgt) in enumerate(indices):
++            src = src.to(features.device)
++            tgt = tgt.to(features.device)
++            matched = F.normalize(features[batch, src], dim=-1)
++            if src.numel() >= 2:
++                similarity = matched @ matched.transpose(0, 1)
++                centers = targets[batch]['tree_centroids'][tgt]
++                neighbors = torch.cdist(centers.float(), centers.float()) <= self.separation_radius
++                pairs = torch.triu(neighbors, diagonal=1)
++                negative_total = negative_total + F.relu(
++                    similarity[pairs] - self.separation_margin
++                ).sum()
++                negative_count = negative_count + pairs.sum()
++            # Positive pairs are the same GT instance in adjacent decoder states.
++            for (left, left_indices), (right, right_indices) in zip(states[:-1], states[1:]):
++                left_src, left_tgt = left_indices[batch]
++                right_src, right_tgt = right_indices[batch]
++                left_src, left_tgt = left_src.to(features.device), left_tgt.to(features.device)
++                right_src, right_tgt = right_src.to(features.device), right_tgt.to(features.device)
++                pairs = (left_tgt[:, None] == right_tgt[None, :]).nonzero(as_tuple=False)
++                if pairs.numel() == 0:
++                    continue
++                a = F.normalize(left['query_features'][batch, left_src[pairs[:, 0]]].float(), dim=-1)
++                b = F.normalize(right['query_features'][batch, right_src[pairs[:, 1]]].float(), dim=-1)
++                positive_total = positive_total + (1 - (a * b).sum(-1)).sum()
++                positive_count += pairs.shape[0]
++        return {'loss_query_separation': (
++            self.positive_weight * positive_total / max(positive_count, 1)
++            + self.negative_weight * negative_total / negative_count.clamp_min(1)
++        )}
++
++    def forward(self, outputs, targets):
++        final = {key: value for key, value in outputs.items() if key != 'aux_outputs'}
++        indices = self.matcher(final, targets)
++        num_masks = torch.tensor(
++            [sum(len(target['labels']) for target in targets)],
++            dtype=torch.float32, device=outputs['pred_logits'].device,
++        )
++        if is_dist_avail_and_initialized():
++            torch.distributed.all_reduce(num_masks)
++        num_masks = (num_masks / get_world_size()).clamp_min(1).item()
++        result = {}
++        for loss in self.losses:
++            result.update(self.get_loss(loss, final, targets, indices, num_masks))
++        if self.weight_dict.get('loss_boundary', 0) > 0:
++            result.update(self.loss_boundary(final, targets, indices, num_masks))
++        result.update(self.loss_geometry(final, targets))
++        auxiliary = outputs.get('aux_outputs', [])
++        auxiliary_indices = []
++        for layer, prediction in enumerate(auxiliary):
++            assignment = self.matcher(prediction, targets)
++            auxiliary_indices.append(assignment)
++            for loss in self.losses:
++                values = self.get_loss(loss, prediction, targets, assignment, num_masks)
++                result.update({f'{key}_{layer}': value for key, value in values.items()})
++        if self.weight_dict.get('loss_query_separation', 0) > 0:
++            result.update(self.loss_separation(final, indices, auxiliary, auxiliary_indices, targets))
++        return result
+diff --git a/mask2former/modeling/tree_geometry.py b/mask2former/modeling/tree_geometry.py
+new file mode 100644
+index 0000000..000503a
+--- /dev/null
++++ b/mask2former/modeling/tree_geometry.py
+@@ -0,0 +1,153 @@
++import numpy as np
++import torch
++from scipy.ndimage import binary_dilation, binary_erosion, distance_transform_edt
++from torch import nn
++from torch.nn import functional as F
++
++
++def resize_padding_mask(mask, size):
++    # A feature cell touching padding is excluded from geometry supervision.
++    return F.adaptive_max_pool2d(mask[:, None].float(), size)[:, 0].bool()
++
++
++def mask_centroids(probabilities, valid=None):
++    """Normalized (x, y) centers for [N, H, W] masks, in float32."""
++    probabilities = probabilities.float()
++    if valid is not None:
++        probabilities = probabilities * valid.to(probabilities)
++    height, width = probabilities.shape[-2:]
++    x = (torch.arange(width, device=probabilities.device).float() + 0.5) / width
++    y = (torch.arange(height, device=probabilities.device).float() + 0.5) / height
++    mass = probabilities.sum((-2, -1)).clamp_min(1e-6)
++    cx = (probabilities.sum(-2) * x).sum(-1) / mass
++    cy = (probabilities.sum(-1) * y).sum(-1) / mass
++    return torch.stack((cx, cy), dim=-1)
++
++
++class TreeGeometryEncoder(nn.Module):
++    def __init__(self, mask_dim):
++        super().__init__()
++        width = max(8, mask_dim // 4)
++
++        def branch():
++            return nn.Sequential(
++                nn.Conv2d(mask_dim, width, 3, padding=1),
++                nn.GroupNorm(1, width),
++                nn.ReLU(),
++                nn.Conv2d(width, 1, 1),
++            )
++
++        self.center = branch()
++        self.boundary = branch()
++        self.distance = branch()
++        self.fusion = nn.Conv2d(3, mask_dim, 3, padding=1)
++        nn.init.normal_(self.fusion.weight, std=1e-3)
++        nn.init.zeros_(self.fusion.bias)
++        nn.init.constant_(self.center[-1].bias, -2.19)
++
++    def forward(self, features):
++        predictions = {
++            'center_logits': self.center(features),
++            'boundary_logits': self.boundary(features),
++            'distance_logits': self.distance(features),
++        }
++        priors = torch.cat([value.sigmoid() for value in predictions.values()], 1)
++        return features + self.fusion(priors), predictions
++
++
++class TreeAwareQueryGenerator(nn.Module):
++    def __init__(self, mask_dim, hidden_dim, num_queries, num_guided, nms_kernel):
++        super().__init__()
++        if num_guided < 0:
++            num_guided = max(1, num_queries // 2)
++        if not 1 <= num_guided <= num_queries:
++            raise ValueError('NUM_GUIDED_QUERIES must be in [1, NUM_OBJECT_QUERIES]')
++        if nms_kernel < 1 or nms_kernel % 2 == 0:
++            raise ValueError('NMS_KERNEL must be a positive odd integer')
++        self.num_guided = num_guided
++        self.nms_kernel = nms_kernel
++        self.projection = nn.Linear(mask_dim, hidden_dim, bias=False)
++        # Geometry heads receive explicit losses even at zero query residual.
++        nn.init.zeros_(self.projection.weight)
++
++    def forward(self, features, center_logits, queries, padding_mask=None):
++        batch, channels, height, width = features.shape
++        count = min(self.num_guided, height * width)
++        scores = center_logits[:, 0].float().sigmoid()
++        valid = torch.ones_like(scores, dtype=torch.bool)
++        if padding_mask is not None:
++            valid = ~resize_padding_mask(padding_mask, (height, width))
++        scores_for_nms = scores.masked_fill(~valid, -1.0)
++        pooled = F.max_pool2d(
++            scores_for_nms[:, None], self.nms_kernel, 1, self.nms_kernel // 2
++        )[:, 0]
++        peaks = (scores_for_nms == pooled) & valid
++        ranked = scores.masked_fill(~peaks, -1.0).flatten(1)
++        indices = ranked.topk(count, dim=1).indices
++        confidence = scores.flatten(1).gather(1, indices)
++        confidence = confidence * peaks.flatten(1).gather(1, indices)
++        sampled = features.flatten(2).transpose(1, 2).gather(
++            1, indices[:, :, None].expand(batch, count, channels)
++        )
++        residual = self.projection(sampled)
++        residual = residual * confidence.to(residual.dtype)[:, :, None] * 0.1
++        guided = queries[:count] + residual.transpose(0, 1).to(queries.dtype)
++        return torch.cat((guided, queries[count:]), dim=0)
++
++
++@torch.no_grad()
++def build_tree_targets(masks, padding_mask, output_size, sigma,
++                       build_boundary=True, build_distance=True):
++    """Build per-instance geometry before merging; never use the mask union EDT.
++
++    Distance is an internal EDT normalized independently for each instance.
++    Heatmaps use its maximum; matching uses mask centroids instead.
++    """
++    height, width = output_size
++    full_height, full_width = masks.shape[-2:]
++    valid = ~resize_padding_mask(padding_mask[None], output_size)[0]
++    center = np.zeros((height, width), np.float32)
++    boundary = np.zeros((full_height, full_width), np.float32) if build_boundary else None
++    distance = torch.zeros(output_size, device=masks.device, dtype=torch.float32)
++    foreground = torch.zeros_like(distance)
++    foreground_union = np.zeros((full_height, full_width), dtype=bool) if build_distance else None
++    yy, xx = np.mgrid[:height, :width]
++    for binary in masks.detach().bool().cpu().numpy():
++        if not binary.any():
++            continue
++        edt = distance_transform_edt(np.pad(binary, 1))[1:-1, 1:-1]
++        cy, cx = np.unravel_index(edt.argmax(), edt.shape)
++        cy = int(np.clip(np.floor((cy + 0.5) * height / full_height), 0, height - 1))
++        cx = int(np.clip(np.floor((cx + 0.5) * width / full_width), 0, width - 1))
++        gaussian = np.exp(-((yy - cy) ** 2 + (xx - cx) ** 2) / (2 * sigma ** 2))
++        center = np.maximum(center, gaussian.astype(np.float32))
++        if build_boundary:
++            # Instance boundaries must be computed before merging.
++            structure = np.ones((3, 3), dtype=bool)
++            ring = binary_dilation(binary, structure=structure) & ~binary_erosion(
++                binary, structure=structure, border_value=0
++            )
++            boundary = np.maximum(boundary, ring.astype(np.float32))
++        if build_distance:
++            normalized = torch.from_numpy((edt / edt.max()).astype(np.float32)).to(masks.device)
++            resized = F.interpolate(
++                normalized[None, None], output_size, mode='bilinear', align_corners=False
++            )[0, 0]
++            distance = torch.maximum(distance, resized)
++            foreground_union |= binary
++    if build_boundary:
++        boundary = torch.from_numpy(boundary).to(masks.device)
++        boundary = F.adaptive_max_pool2d(boundary[None, None], output_size)[0, 0]
++    else:
++        boundary = torch.zeros_like(distance)
++    if build_distance:
++        # max(pool(mask_i)) == pool(union(mask_i)): one pool, one transfer.
++        binary_tensor = torch.from_numpy(foreground_union).to(masks.device).float()
++        foreground = F.adaptive_max_pool2d(binary_tensor[None, None], output_size)[0, 0]
++    return {
++        'center': torch.from_numpy(center).to(masks.device) * valid,
++        'boundary': boundary * valid,
++        'distance': distance * valid,
++        'foreground': foreground * valid,
++        'valid': valid,
++    }
+diff --git a/mask2former/modeling/tree_geometry_cache.py b/mask2former/modeling/tree_geometry_cache.py
+new file mode 100644
+index 0000000..2a4470d
+--- /dev/null
++++ b/mask2former/modeling/tree_geometry_cache.py
+@@ -0,0 +1,168 @@
++"""CPU cache utilities. No EDT or model execution occurs while reading."""
++from collections import OrderedDict
++import hashlib
++import json
++import os
++from pathlib import Path
++import tempfile
++
++import numpy as np
++
++SCHEMA = 1
++
++
++def sample_key(record):
++    identity = [str(record['image_id']), str(Path(record['file_name']).resolve())]
++    return hashlib.sha256(json.dumps(identity).encode()).hexdigest()
++
++
++def annotation_signature(record):
++    def encode(value):
++        if isinstance(value, bytes):
++            return value.decode('ascii')
++        if isinstance(value, np.ndarray):
++            return value.tolist()
++        if isinstance(value, np.generic):
++            return value.item()
++        raise TypeError(type(value).__name__)
++    text = json.dumps(record.get('annotations', []), sort_keys=True,
++                      separators=(',', ':'), default=encode)
++    return hashlib.sha256(text.encode()).hexdigest()
++
++
++def variant_key(image_size, horizontal=False, vertical=False):
++    height, width = map(int, image_size)
++    return f'{height}x{width}_h{int(horizontal)}v{int(vertical)}'
++
++
++def cache_profile(cfg, is_train=True):
++    sizes = cfg.INPUT.MIN_SIZE_TRAIN if is_train else cfg.INPUT.MIN_SIZE_TEST
++    if isinstance(sizes, int):
++        sizes = (sizes,)
++    stride = int(cfg.MODEL.SEM_SEG_HEAD.COMMON_STRIDE)
++    divisor = int(cfg.MODEL.MASK_FORMER.SIZE_DIVISIBILITY)
++    if stride <= 0 or divisor <= 0 or divisor % stride:
++        raise ValueError('Cache requires positive SIZE_DIVISIBILITY divisible by COMMON_STRIDE')
++    return {
++        'short_edges': sorted(set(map(int, sizes))),
++        'max_size': int(cfg.INPUT.MAX_SIZE_TRAIN if is_train else cfg.INPUT.MAX_SIZE_TEST),
++        'stride': stride, 'divisor': divisor,
++        'sigma': float(cfg.MODEL.TREE_AWARE.CENTER_SIGMA),
++        'format': str(cfg.INPUT.FORMAT), 'mask_format': str(cfg.INPUT.MASK_FORMAT),
++    }
++
++
++def write_variant(folder, key, variant, geometry, centroid_pixels, meta):
++    """Atomic NPZ, float32 center/distance; never store pickle objects."""
++    folder = Path(folder)
++    folder.mkdir(parents=True, exist_ok=True)
++    name = f'{key}_{variant}.npz'
++    values = {}
++    for field, value in geometry.items():
++        if hasattr(value, 'detach'):
++            value = value.detach().cpu().numpy()
++        dtype = np.bool_ if field == 'valid' else (
++            np.uint8 if field in ('boundary', 'foreground') else np.float32
++        )
++        values[field] = np.asarray(value, dtype=dtype)
++    values['centroid_pixels'] = np.asarray(centroid_pixels, dtype=np.float32)
++    values['meta'] = np.frombuffer(json.dumps(meta, sort_keys=True).encode(), dtype=np.uint8)
++    fd, temporary = tempfile.mkstemp(prefix='.geometry-', suffix='.npz', dir=folder)
++    try:
++        with os.fdopen(fd, 'wb') as stream:
++            np.savez_compressed(stream, **values)
++        os.replace(temporary, folder / name)
++    finally:
++        if os.path.exists(temporary):
++            os.unlink(temporary)
++    return name
++
++
++def write_manifest(folder, manifest):
++    folder = Path(folder)
++    folder.mkdir(parents=True, exist_ok=True)
++    fd, temporary = tempfile.mkstemp(prefix='.manifest-', dir=folder)
++    try:
++        with os.fdopen(fd, 'w') as stream:
++            json.dump(manifest, stream, sort_keys=True)
++        os.replace(temporary, folder / 'manifest.json')
++    finally:
++        if os.path.exists(temporary):
++            os.unlink(temporary)
++
++
++class TreeGeometryCache:
++    """Bounded host-memory LRU; loaded in DataLoader workers by the ITD mapper."""
++    def __init__(self, root, datasets, profile, build_boundary, build_distance, max_items=8):
++        self.root = Path(root).resolve()
++        self.profile = profile
++        self.build_boundary = bool(build_boundary)
++        self.build_distance = bool(build_distance)
++        self.max_items = int(max_items)
++        if self.max_items < 0:
++            raise ValueError('CACHE_MEMORY_ITEMS must be nonnegative')
++        self.indices = []
++        self.lru = OrderedDict()
++        for dataset in datasets:
++            folder = self.root / dataset
++            with (folder / 'manifest.json').open() as stream:
++                manifest = json.load(stream)
++            if manifest['schema'] != SCHEMA or manifest['dataset'] != dataset:
++                raise ValueError(f'Invalid geometry manifest for {dataset}')
++            if manifest['profile'] != profile:
++                raise ValueError(f'Cache resize/padding/sigma profile changed for {dataset}; precompute again')
++            if self.build_boundary and not manifest['build_boundary']:
++                raise ValueError(f'{dataset} cache has no Boundary; precompute with its weight > 0')
++            if self.build_distance and not manifest['build_distance']:
++                raise ValueError(f'{dataset} cache has no Distance; precompute with its weight > 0')
++            self.indices.append((folder, manifest['entries']))
++
++    def get(self, record, image_size, horizontal=False, vertical=False, signature=None):
++        key = sample_key(record)
++        variant = variant_key(image_size, horizontal, vertical)
++        matches = [(folder, entries[key]) for folder, entries in self.indices if key in entries]
++        if len(matches) != 1:
++            raise KeyError(f'Expected one cache record for image_id={record["image_id"]}; found {len(matches)}')
++        folder, entry = matches[0]
++        signature = annotation_signature(record) if signature is None else signature
++        if entry['annotation_signature'] != signature:
++            raise ValueError('Annotations changed; precompute geometry again')
++        if variant not in entry['variants']:
++            raise KeyError(f'Missing geometry variant {variant}; no online EDT fallback')
++        relative = entry['variants'][variant]
++        path = (folder / relative).resolve()
++        if not path.is_relative_to(folder.resolve()):
++            raise ValueError('Geometry cache path escapes its dataset folder')
++        fields = ['center', 'valid']
++        if self.build_boundary:
++            fields.append('boundary')
++        if self.build_distance:
++            fields.extend(('distance', 'foreground'))
++        cache_identity = (str(path), tuple(fields))
++        if cache_identity in self.lru:
++            result = self.lru.pop(cache_identity)
++            self.lru[cache_identity] = result
++            return result
++        with np.load(path, allow_pickle=False) as archive:
++            geometry = {field: np.ascontiguousarray(archive[field]) for field in fields}
++            centroids = np.ascontiguousarray(archive['centroid_pixels'])
++            meta = json.loads(archive['meta'].tobytes().decode())
++        expected = tuple(meta['feature_size'])
++        if tuple(meta['image_size']) != tuple(image_size):
++            raise ValueError('Cache image size mismatch')
++        if any(array.shape != expected for array in geometry.values()):
++            raise ValueError('Cache feature map shape mismatch')
++        if meta['stride'] != self.profile['stride'] or meta['divisor'] != self.profile['divisor']:
++            raise ValueError('Cache feature stride/padding divisor mismatch')
++        if meta['sigma'] != self.profile['sigma']:
++            raise ValueError('Cache center sigma mismatch')
++        if bool(meta['horizontal']) != bool(horizontal) or bool(meta['vertical']) != bool(vertical):
++            raise ValueError('Cache flip mismatch')
++        if centroids.shape != (meta['num_instances'], 2):
++            raise ValueError('Cache centroid count mismatch')
++        result = (geometry, centroids, meta)
++        if self.max_items:
++            self.lru[cache_identity] = result
++            while len(self.lru) > self.max_items:
++                self.lru.popitem(last=False)
++        return result
+diff --git a/tools/precompute_tree_geometry.py b/tools/precompute_tree_geometry.py
+new file mode 100644
+index 0000000..e7b7ab0
+--- /dev/null
++++ b/tools/precompute_tree_geometry.py
+@@ -0,0 +1,144 @@
++#!/usr/bin/env python3
++"""Precompute exact ITD resize/flip targets on CPU; no model or CUDA required."""
++import argparse
++import importlib.util
++from pathlib import Path
++import sys
++
++import torch
++
++PROJECT = Path(__file__).resolve().parents[1]
++sys.path.insert(0, str(PROJECT))
++
++
++def load_file(name, relative):
++    spec = importlib.util.spec_from_file_location(name, PROJECT / relative)
++    module = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(module)
++    return module
++
++
++geometry = load_file('_offline_geometry', 'mask2former/modeling/tree_geometry.py')
++cache = load_file('_offline_cache', 'mask2former/modeling/tree_geometry_cache.py')
++
++
++def precompute_record(record, cfg, profile, folder, mapper_class, transforms,
++                      build_boundary, build_distance, flips=True):
++    key = cache.sample_key(record)
++    entry = {'annotation_signature': cache.annotation_signature(record), 'variants': {}}
++    for size in profile['short_edges']:
++        for horizontal, vertical in ((False, False), (True, False), (False, True), (True, True)) if flips else ((False, False),):
++            variant_cfg = cfg.clone()
++            variant_cfg.defrost()
++            variant_cfg.MODEL.TREE_AWARE.CACHE_ENABLED = False
++            mapper = mapper_class(variant_cfg, is_train=True)
++            # Apply annotations through the original mapper, including rasterization and filtering.
++            augmentations = [transforms.ResizeShortestEdge((size,), profile['max_size'], 'choice')]
++            if horizontal:
++                augmentations.append(transforms.RandomFlip(prob=1.0, horizontal=True, vertical=False))
++            if vertical:
++                augmentations.append(transforms.RandomFlip(prob=1.0, horizontal=False, vertical=True))
++            mapper.augmentations = transforms.AugmentationList(augmentations)
++            mapped = mapper(record)
++            height, width = mapped['image'].shape[-2:]
++            variant = cache.variant_key((height, width), horizontal, vertical)
++            if variant in entry['variants']:
++                continue  # Different short edges can hit the same MAX_SIZE-limited dimensions.
++            masks = mapped['instances'].gt_masks
++            if hasattr(masks, 'tensor'):
++                masks = masks.tensor
++            if masks.device.type != 'cpu':
++                raise ValueError('Precomputation requires CPU masks')
++            divisor, stride = profile['divisor'], profile['stride']
++            hp = (height + divisor - 1) // divisor * divisor
++            wp = (width + divisor - 1) // divisor * divisor
++            padded = torch.zeros((len(masks), hp, wp), dtype=torch.bool)
++            padded[:, :height, :width] = masks.bool()
++            padding = torch.ones((hp, wp), dtype=torch.bool)
++            padding[:height, :width] = False
++            output_size = (hp // stride, wp // stride)
++            maps = geometry.build_tree_targets(
++                padded, padding, output_size, profile['sigma'],
++                build_boundary=build_boundary, build_distance=build_distance,
++            )
++            fields = ['center', 'valid']
++            if build_boundary:
++                fields.append('boundary')
++            if build_distance:
++                fields.extend(('distance', 'foreground'))
++            maps = {field: maps[field] for field in fields}
++            centroids = geometry.mask_centroids(padded.float(), ~padding)
++            centroids = (centroids * centroids.new_tensor([wp, hp])).numpy()
++            meta = {
++                'image_size': [height, width], 'padded_size': [hp, wp],
++                'feature_size': list(output_size), 'stride': stride, 'divisor': divisor,
++                'sigma': profile['sigma'], 'horizontal': horizontal, 'vertical': vertical,
++                'num_instances': len(masks),
++            }
++            entry['variants'][variant] = cache.write_variant(folder, key, variant, maps, centroids, meta)
++    return key, entry
++
++
++def main():
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument('--config-file', required=True, help='Export cfg.dump() AFTER notebook overrides')
++    parser.add_argument('--data-root', required=True, help='Root containing training_set and validation_split/validation_set')
++    parser.add_argument('--shared-tools-root', required=True, help='Directory containing your mytools package')
++    parser.add_argument('--output-dir', default=None)
++    parser.add_argument('--datasets', nargs='+', default=None)
++    parser.add_argument('--workers', type=int, default=1, help='CPU images in parallel; start with 1 or 2 to limit host RAM')
++    args = parser.parse_args()
++    if args.workers < 1:
++        parser.error('--workers must be positive')
++    sys.path.insert(0, str(Path(args.shared_tools_root).resolve()))
++    from detectron2.config import get_cfg
++    from detectron2.projects.deeplab import add_deeplab_config
++    from detectron2.data import DatasetCatalog, transforms as T
++    from mytools.dataset_utils import find_validation_root, build_dataset_specs, register_all_itd_datasets
++    from mytools.itd_trainer import ITDMask2FormerMapper
++    cfg = get_cfg()
++    add_deeplab_config(cfg)
++    load_file('_offline_config', 'mask2former/config.py').add_maskformer2_config(cfg)
++    cfg.WRITER_PERIOD = 20  # User notebook's existing custom field.
++    cfg.merge_from_file(args.config_file)
++    root = Path(args.data_root).resolve()
++    specs = build_dataset_specs(root / 'training_set', find_validation_root(root))
++    train_names = [name for name, spec in specs.items() if spec['split'] == 'train']
++    val_names = [name for name, spec in specs.items() if spec['split'] == 'val']
++    register_all_itd_datasets(specs, train_names, val_names)
++    datasets = args.datasets or list(dict.fromkeys((*cfg.DATASETS.TRAIN, *cfg.DATASETS.TEST)))
++    output = Path(args.output_dir or cfg.MODEL.TREE_AWARE.CACHE_DIR).resolve()
++    boundary = cfg.MODEL.TREE_AWARE.BOUNDARY_WEIGHT > 0
++    distance = cfg.MODEL.TREE_AWARE.DISTANCE_WEIGHT > 0
++    # Avoid nested CPU thread pools; these settings affect this offline process only.
++    torch.set_num_threads(1)
++    from concurrent.futures import ThreadPoolExecutor
++    from functools import partial
++    for dataset in datasets:
++        if dataset not in specs:
++            raise KeyError(f'{dataset} was not registered by mytools.dataset_utils')
++        train = specs[dataset]['split'] == 'train'
++        profile = cache.cache_profile(cfg, is_train=train)
++        folder = output / dataset
++        records = DatasetCatalog.get(dataset)
++        manifest = {
++            'schema': cache.SCHEMA, 'dataset': dataset, 'profile': profile,
++            'build_boundary': boundary, 'build_distance': distance, 'entries': {},
++        }
++        operation = partial(precompute_record, cfg=cfg, profile=profile, folder=folder,
++                            mapper_class=ITDMask2FormerMapper, transforms=T,
++                            build_boundary=boundary, build_distance=distance, flips=train)
++        # map preserves order, so registration/manifest ordering stays deterministic.
++        with ThreadPoolExecutor(max_workers=args.workers) as executor:
++            for index, (key, entry) in enumerate(executor.map(operation, records), 1):
++                if key in manifest['entries']:
++                    raise ValueError(f'Duplicate cache identity in {dataset}')
++                manifest['entries'][key] = entry
++                if index % 20 == 0 or index == len(records):
++                    print(f'{dataset}: {index}/{len(records)} images', flush=True)
++        cache.write_manifest(folder, manifest)
++        print(f'Saved {folder / "manifest.json"}', flush=True)
++
++
++if __name__ == '__main__':
++    main()

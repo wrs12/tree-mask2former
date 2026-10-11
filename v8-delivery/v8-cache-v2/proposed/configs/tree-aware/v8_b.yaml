@@ -1,0 +1,6 @@
+# Add boundary/distance supervision; query separation remains disabled.
+_BASE_: tree_aware_v8.yaml
+MODEL:
+  TREE_AWARE:
+    GEOMETRY_MATCH_COST: 0.0
+    SEPARATION_WEIGHT: 0.0

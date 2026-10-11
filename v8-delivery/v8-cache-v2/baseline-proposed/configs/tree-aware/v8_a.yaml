@@ -1,0 +1,10 @@
+# Query/center stage: other geometry heads remain implicit feature branches.
+_BASE_: tree_aware_v8.yaml
+MODEL:
+  TREE_AWARE:
+    MASK_FEATURE_FUSION: False
+    BOUNDARY_WEIGHT: 0.0
+    DISTANCE_WEIGHT: 0.0
+    MASK_BOUNDARY_WEIGHT: 0.0
+    GEOMETRY_MATCH_COST: 0.0
+    SEPARATION_WEIGHT: 0.0

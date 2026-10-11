@@ -1,0 +1,59 @@
+diff --git a/mytools/itd_trainer.py b/mytools/itd_trainer.py
+index 2469696..9a20a30 100644
+--- a/mytools/itd_trainer.py
++++ b/mytools/itd_trainer.py
+@@ -68,6 +68,15 @@ class ITDMask2FormerMapper:
+         self.is_train = is_train
+         self.mask_format = cfg.INPUT.MASK_FORMAT
+         self.input_format = cfg.INPUT.FORMAT
++        self.tree_cache = None
++        tree = getattr(cfg.MODEL, 'TREE_AWARE', None)
++        if is_train and tree is not None and tree.ENABLED and tree.CACHE_ENABLED:
++            from mask2former.modeling.tree_geometry_cache import TreeGeometryCache, cache_profile
++            self.tree_cache = TreeGeometryCache(
++                tree.CACHE_DIR, cfg.DATASETS.TRAIN, cache_profile(cfg),
++                tree.BOUNDARY_WEIGHT > 0, tree.DISTANCE_WEIGHT > 0,
++                tree.CACHE_MEMORY_ITEMS,
++            )
+ 
+         if self.input_format != "RGB":
+             raise ValueError(
+@@ -173,6 +182,7 @@ class ITDMask2FormerMapper:
+ 
+     def __call__(self, dataset_dict):
+ 
++        cache_record = dataset_dict
+         dataset_dict = copy.deepcopy(
+             dataset_dict
+         )
+@@ -260,7 +270,30 @@ class ITDMask2FormerMapper:
+                     instances.gt_masks.tensor
+                 )
+ 
++            if not instances.has("gt_masks"):
++                # annotations_to_instances omits this field for an empty annotation list.
++                instances.gt_masks = torch.zeros((0, *image_shape), dtype=torch.bool)
+             dataset_dict["instances"] = instances
++            if self.tree_cache is not None:
++                horizontal = vertical = False
++                for transform in transforms.transforms:
++                    if isinstance(transform, T.HFlipTransform):
++                        horizontal = not horizontal
++                    elif isinstance(transform, T.VFlipTransform):
++                        vertical = not vertical
++                    elif not isinstance(transform, (T.ResizeTransform, T.NoOpTransform, T.BlendTransform)):
++                        raise ValueError(f'Unsupported cached geometry transform: {type(transform).__name__}')
++                maps, centroids, meta = self.tree_cache.get(
++                    cache_record, image_shape, horizontal, vertical
++                )
++                if meta['num_instances'] != len(instances):
++                    raise ValueError('Augmented GT instance count changed; rebuild cache')
++                # Readers never mutate the LRU arrays; the model creates padded device tensors.
++                dataset_dict['tree_geometry_cache'] = {
++                    'maps': {key: torch.from_numpy(value) for key, value in maps.items()},
++                    'centroid_pixels': torch.from_numpy(centroids),
++                    'meta': meta,
++                }
+ 
+         return dataset_dict
+ 

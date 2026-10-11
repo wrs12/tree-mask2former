@@ -1,0 +1,7 @@
+# Export the final notebook cfg before precomputation.
+_BASE_: v8_c.yaml
+MODEL:
+  TREE_AWARE:
+    CACHE_ENABLED: True
+    CACHE_DIR: tree_cache
+    CACHE_MEMORY_ITEMS: 8
